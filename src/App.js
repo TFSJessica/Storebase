@@ -154,7 +154,7 @@ function PieChart({slices}){
 export default function App(){
   const[stores]   =useState(()=>{const s=load("tfs_st6",null);return s&&s.length?s:initStores();});
   const[todos,setTodos]  =useState(()=>load("tfs_td6",[]));
-  const[people,setPeople]=useState(()=>load("tfs_pp6",[]));
+  const[people,setPeople]=useState(()=>{ const p=load("tfs_pp6",null); if(p&&p.length) return p; const init=initPeople(); save("tfs_pp6",init); return init; });
   const[tab,setTab]      =useState("myday");
   const[toast,setToast]  =useState(null);
   const[selStore,setSelStore]=useState("all");
@@ -169,6 +169,7 @@ export default function App(){
 
   // isAdmin: true if current user set up the PIN (i.e. is Jessica / the admin)
   const isAdmin = adminPin && currentUser && load("tfs_admin_user_id",null)===currentUser.id;
+  const isAdminView = currentUser?.store==="All Stores" || isAdmin;
 
   // requireAdmin: if admin, run action immediately; else show PIN prompt
   const requireAdmin = (action) => {
@@ -272,7 +273,14 @@ export default function App(){
     }
   };
 
+  const canComplete = t => {
+    if(!currentUser) return false;
+    if(currentUser.store==="All Stores") return true;
+    return t.assigneeName===currentUser.name || t.storeName===currentUser.store;
+  };
   const toggleDone=id=>{
+    const task=todos.find(t=>t.id===id);
+    if(!task||!canComplete(task)) return;
     setTodos(p=>p.map(t=>{
       if(t.id!==id)return t;
       const done=!t.done;
@@ -285,7 +293,7 @@ export default function App(){
         else if(t.recur==="monthly")d.setMonth(d.getMonth()+1);
         return{...t,done:false,due:d.toISOString().slice(0,16),history:[...(t.history||[]),{id:uid(),action:"Completed & reset (recurring)",by:currentUser?.name??"",at:new Date().toISOString()}]};
       }
-      return{...t,done,history:[...(t.history||[]),histEntry]};
+      return{...t,done,completedBy:done?currentUser?.name??null:null,completedAt:done?new Date().toISOString():null,history:[...(t.history||[]),histEntry]};
     }));
   };
   const deleteTodo=id=>setTodos(p=>p.filter(t=>t.id!==id));
@@ -634,6 +642,19 @@ export default function App(){
                   </button>
                 ))}
               </div>
+
+              {/* Admin section */}
+              <div style={{fontSize:10,color:"#aaa",fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",marginBottom:10}}>Admin</div>
+              <button onClick={()=>selectUser({id:"jessica_admin",name:"Jessica Castillanos",role:"Admin",email:"",store:"All Stores",color:"#1a1a1a",playerId:null})} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.07)",borderRadius:12,cursor:"pointer",transition:"all .15s",textAlign:"left",width:"100%",marginBottom:6}}
+                onMouseEnter={e=>{e.currentTarget.style.background="rgba(0,0,0,0.07)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="rgba(0,0,0,0.03)";}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:700,flexShrink:0}}>JC</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:14,color:"#1a1a1a"}}>Jessica Castillanos</div>
+                  <div style={{fontSize:11,color:"#aaa"}}>🔐 Admin — All Stores</div>
+                </div>
+                <div style={{fontSize:12,color:"#ccc"}}>→</div>
+              </button>
 
               {/* Not in list */}
               <div style={{borderTop:"1px solid rgba(0,0,0,0.07)",paddingTop:16,textAlign:"center"}}>
