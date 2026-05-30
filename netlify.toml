@@ -1,8 +1,17 @@
 [build]
   publish = "build"
   command = "npm run build"
+  functions = "netlify/functions"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Daily digest at 8:00 AM Pacific (16:00 UTC)
+[functions."daily-digest"]
+  schedule = "0 16 * * *"
+
+# Check for overdue tasks every hour
+[functions."check-overdue"]
+  schedule = "0 * * * *"
