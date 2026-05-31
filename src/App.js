@@ -185,6 +185,13 @@ export default function App(){
   const[storeDropdown,setStoreDropdown]=useState(false);
   const[currentUser,setCurrentUser]=useState(()=>load("tfs_current_user",null));
   const[adminPin]  =useState(()=>load("tfs_admin_pin",null));
+  const[adminLoginPin]=useState(()=>load("tfs_admin_login_pin",null));
+  const[showLoginPin,setShowLoginPin]=useState(false);
+  const[loginPinInput,setLoginPinInput]=useState("");
+  const[loginPinError,setLoginPinError]=useState(false);
+  const[pendingAdminLogin,setPendingAdminLogin]=useState(null);
+  const[showSetLoginPin,setShowSetLoginPin]=useState(false);
+  const[newLoginPinVal,setNewLoginPinVal]=useState("");
   const[pinPrompt, setPinPrompt]=useState(null); // {action, args} -- pending action waiting for PIN
   const[pinInput,  setPinInput] =useState("");
   const[pinError,  setPinError] =useState(false);
@@ -192,13 +199,13 @@ export default function App(){
   const[newPinVal, setNewPinVal] =useState("");
 
   // isAdmin: true if current user set up the PIN (i.e. is Jessica / the admin)
-  const isAdmin = adminPin && currentUser && load("tfs_admin_user_id",null)===currentUser.id;
+  const isAdmin = (currentUser?.name==="Jessica Castillanos") || (adminPin && currentUser && load("tfs_admin_user_id",null)===currentUser.id);
   const isAdminView = currentUser?.store==="All Stores" || isAdmin;
 
-  // requireAdmin: if admin, run action immediately; else show PIN prompt
+  // requireAdmin: Jessica always has access; others need PIN
   const requireAdmin = (action) => {
-    if(isAdmin){ action(); return; }
-    if(!adminPin){ showToast("No admin PIN set. Ask your manager."); return; }
+    if(isAdmin || currentUser?.name==="Jessica Castillanos"){ action(); return; }
+    if(!adminPin){ showToast("Only Jessica can make changes."); return; }
     setPinPrompt(action);
     setPinInput("");
     setPinError(false);
@@ -355,11 +362,53 @@ export default function App(){
   const deletePerson=id=>{setPeople(p=>p.filter(x=>x.id!==id));setTodos(p=>p.map(t=>t.assigneeId===id?{...t,assigneeId:"",assigneeName:"",assigneeEmail:""}:t));};
 
   const selectUser=(person)=>{
+    // If Jessica, require login PIN if one is set
+    if(person.name==="Jessica Castillanos" && adminLoginPin){
+      setPendingAdminLogin(person);
+      setLoginPinInput("");
+      setLoginPinError(false);
+      setShowLoginPin(true);
+      return;
+    }
+    // If Jessica and no PIN set yet, ask to set one
+    if(person.name==="Jessica Castillanos" && !adminLoginPin){
+      setPendingAdminLogin(person);
+      setShowSetLoginPin(true);
+      return;
+    }
+    doLogin(person);
+  };
+
+  const doLogin=(person)=>{
     const user={...person,playerId:playerId||null};
     setCurrentUser(user);
     save("tfs_current_user",user);
     if(playerId) setPeople(p=>p.map(x=>x.id===person.id?{...x,playerId}:x));
     showToast("Welcome, "+person.name+"!");
+  };
+
+  const submitLoginPin=()=>{
+    if(loginPinInput===adminLoginPin){
+      setShowLoginPin(false);
+      setLoginPinInput("");
+      setLoginPinError(false);
+      doLogin(pendingAdminLogin);
+      setPendingAdminLogin(null);
+    } else {
+      setLoginPinError(true);
+      setLoginPinInput("");
+    }
+  };
+
+  const saveLoginPin=(pin)=>{
+    if(!pin||pin.length<4) return;
+    save("tfs_admin_login_pin", pin);
+    setShowSetLoginPin(false);
+    setNewLoginPinVal("");
+    // Now log in
+    doLogin(pendingAdminLogin);
+    setPendingAdminLogin(null);
+    showToast("Admin PIN set! You will need it next time you log in.");
   };
 
   const saveAdminPin = (pin, userId) => {
