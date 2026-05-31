@@ -67,43 +67,67 @@ async function sendPush({ playerIds, title, message }) {
 // ── OneSignal SDK loader ──────────────────────────────────────────────────────
 function useOneSignal() {
   const [playerId, setPlayerId] = useState(() => load("tfs_player_id", null));
-  const [notifStatus, setNotifStatus] = useState("unknown");
+  const [notifStatus, setNotifStatus] = useState(() => {
+    if (typeof Notification !== "undefined") return Notification.permission;
+    return "unknown";
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Load OneSignal SDK
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
     const script = document.createElement("script");
     script.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-    script.defer = true;
+    script.async = true;
+    script.onload = () => {
+      window.OneSignalDeferred.push(async (OS) => {
+        try {
+          await OS.init({
+            appId: ONESIGNAL_APP_ID,
+            serviceWorkerParam: { scope: "/" },
+            notifyButton: { enable: false },
+            allowLocalhostAsSecureOrigin: true,
+          });
+          const granted = await OS.Notifications.permission;
+          if (granted) {
+            setNotifStatus("granted");
+            const id = OS.User.PushSubscription.id;
+            if (id) { setPlayerId(id); save("tfs_player_id", id); }
+          }
+          OS.User.PushSubscription.addEventListener("change", e => {
+            if (e.current?.id) {
+              setPlayerId(e.current.id);
+              save("tfs_player_id", e.current.id);
+              setNotifStatus("granted");
+            }
+          });
+        } catch(e) { console.warn("OneSignal init failed:", e); }
+      });
+    };
     document.head.appendChild(script);
-
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async (OneSignal) => {
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        serviceWorkerParam: { scope: "/" },
-        notifyButton: { enable: false },
-      });
-      const permission = await OneSignal.Notifications.permission;
-      setNotifStatus(permission ? "granted" : "default");
-
-      if (permission) {
-        const id = await OneSignal.User.PushSubscription.id;
-        if (id) { setPlayerId(id); save("tfs_player_id", id); }
-      }
-
-      OneSignal.User.PushSubscription.addEventListener("change", (e) => {
-        if (e.current?.id) { setPlayerId(e.current.id); save("tfs_player_id", e.current.id); }
-      });
-    });
     return () => { try { document.head.removeChild(script); } catch(e){} };
   }, []);
 
   const requestPermission = async () => {
-    if (!window.OneSignal) return;
-    await window.OneSignal.Notifications.requestPermission();
-    const id = await window.OneSignal.User.PushSubscription.id;
-    if (id) { setPlayerId(id); save("tfs_player_id", id); setNotifStatus("granted"); }
+    try {
+      if (window.OneSignal) {
+        await window.OneSignal.Notifications.requestPermission();
+        await new Promise(r => setTimeout(r, 1000));
+        const id = window.OneSignal.User.PushSubscription.id;
+        if (id) {
+          setPlayerId(id);
+          save("tfs_player_id", id);
+          setNotifStatus("granted");
+          return;
+        }
+      }
+      // Fallback to native
+      if ("Notification" in window) {
+        const perm = await Notification.requestPermission();
+        setNotifStatus(perm);
+      }
+    } catch(e) {
+      console.warn("Permission request failed:", e);
+    }
   };
 
   return { playerId, notifStatus, requestPermission };
