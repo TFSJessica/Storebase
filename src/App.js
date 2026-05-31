@@ -742,6 +742,40 @@ export default function App(){
                   Continue as Guest
                 </button>
               </div>
+
+              {/* LOGIN PIN MODAL */}
+              {showLoginPin&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}}>
+                <div style={{background:"#fff",borderRadius:18,padding:"28px 24px",width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+                  <div style={{textAlign:"center",marginBottom:20}}>
+                    <div style={{width:52,height:52,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16,fontWeight:700,margin:"0 auto 12px"}}>JC</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:".08em",marginBottom:4}}>ADMIN ACCESS</div>
+                    <div style={{fontSize:13,color:"#aaa"}}>Enter your PIN to continue as Jessica.</div>
+                  </div>
+                  <input type="password" inputMode="numeric" maxLength={8} value={loginPinInput} onChange={e=>setLoginPinInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitLoginPin()} placeholder="Enter PIN" style={{fontSize:20,letterSpacing:".3em",textAlign:"center",marginBottom:loginPinError?8:16,padding:"12px",width:"100%",border:"1.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}} autoFocus/>
+                  {loginPinError&&<div style={{fontSize:12,color:"#dc2626",marginBottom:12,textAlign:"center"}}>Incorrect PIN. Try again.</div>}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={submitLoginPin} style={{flex:1,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>
+                    <button onClick={()=>{setShowLoginPin(false);setLoginPinInput("");setLoginPinError(false);setPendingAdminLogin(null);}} style={{background:"none",border:"1.5px solid rgba(0,0,0,0.15)",borderRadius:10,padding:"12px 16px",fontSize:14,cursor:"pointer",color:"#555",fontFamily:"inherit"}}>Cancel</button>
+                  </div>
+                </div>
+              </div>}
+
+              {/* SET LOGIN PIN MODAL */}
+              {showSetLoginPin&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}}>
+                <div style={{background:"#fff",borderRadius:18,padding:"28px 24px",width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+                  <div style={{textAlign:"center",marginBottom:20}}>
+                    <div style={{width:52,height:52,borderRadius:"50%",background:"#1a1a1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:16,fontWeight:700,margin:"0 auto 12px"}}>JC</div>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:".08em",marginBottom:4}}>SET YOUR PIN</div>
+                    <div style={{fontSize:13,color:"#aaa",lineHeight:1.5}}>Create a PIN to protect your admin account. Your team cannot log in as you without it.</div>
+                  </div>
+                  <input type="password" inputMode="numeric" maxLength={8} value={newLoginPinVal} onChange={e=>setNewLoginPinVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveLoginPin(newLoginPinVal)} placeholder="Choose a PIN (4-8 digits)" style={{fontSize:18,letterSpacing:".2em",textAlign:"center",marginBottom:16,padding:"12px",width:"100%",border:"1.5px solid rgba(0,0,0,0.15)",borderRadius:8,outline:"none"}} autoFocus/>
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>saveLoginPin(newLoginPinVal)} disabled={!newLoginPinVal||newLoginPinVal.length<4} style={{flex:1,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",opacity:(!newLoginPinVal||newLoginPinVal.length<4)?.4:1,fontFamily:"inherit"}}>Set PIN and Login</button>
+                    <button onClick={()=>{setShowSetLoginPin(false);setPendingAdminLogin(null);}} style={{background:"none",border:"1.5px solid rgba(0,0,0,0.15)",borderRadius:10,padding:"12px 16px",fontSize:14,cursor:"pointer",color:"#555",fontFamily:"inherit"}}>Cancel</button>
+                  </div>
+                  <div style={{fontSize:11,color:"#ccc",textAlign:"center",marginTop:12}}>You can change this PIN later in the Team tab.</div>
+                </div>
+              </div>}
             </div>
           </div>
         )}
