@@ -670,7 +670,7 @@ export default function App(){
 
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
 
-      <div style={{maxWidth:620,margin:"0 auto",padding:"10px 14px 80px"}}>
+      <div style={{maxWidth:620,margin:"0 auto",padding:"6px 12px 80px"}}>
 
         {/* WHO ARE YOU -- first time setup */}
         {!currentUser&&(
@@ -784,11 +784,11 @@ export default function App(){
         {currentUser&&<>
 
         {/* HEADER */}
-        <div style={{...glass,padding:"18px 22px",marginBottom:18}}>
+        <div style={{...glass,padding:"8px 14px",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:9,letterSpacing:".25em",color:"#bbb",marginBottom:1}}>YOUR BAY AREA FLOORING AUTHORITY</div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:".04em",lineHeight:1}}>THE FLOOR STORE</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:9,letterSpacing:".2em",color:"#ccc",marginBottom:1,display:"none"}}>YOUR BAY AREA FLOORING AUTHORITY</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:".04em",lineHeight:1}}>THE FLOOR STORE</div>
               {currentUser&&<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
                 <div style={{width:18,height:18,borderRadius:"50%",background:currentUser.color||"#888",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:8,fontWeight:700,flexShrink:0}}>{initials(currentUser.name)}</div>
                 <span style={{fontSize:11,color:"#888",fontWeight:500}}>{currentUser.name}</span>
@@ -803,9 +803,9 @@ export default function App(){
               {notifStatus==="granted"&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600}}>🔔 Alerts on</div>}
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginTop:14,position:"relative"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginTop:8,position:"relative"}}>
             {/* Stores card -- clickable, dropdown rendered outside grid */}
-            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:10,padding:"10px 12px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s",userSelect:"none"}}
+            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s",userSelect:"none"}}
               onClick={e=>{e.stopPropagation();setStoreDropdown(v=>!v);}}>
               <div style={{fontSize:16,marginBottom:3}}>📍</div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"#1a1a1a",lineHeight:1}}>{stores.length}</div>
@@ -814,7 +814,7 @@ export default function App(){
               </div>
             </div>
             {/* My Day card */}
-            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:10,padding:"10px 12px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s"}}
+            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s"}}
               onClick={()=>setTab("myday")}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.03)"}>
@@ -823,7 +823,7 @@ export default function App(){
               <div style={{fontSize:9,color:"#bbb",letterSpacing:".08em",marginTop:2,fontWeight:600}}>MY DAY</div>
             </div>
             {/* Open card with big % */}
-            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:10,padding:"10px 12px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s"}}
+            <div style={{background:"rgba(0,0,0,0.03)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s"}}
               onClick={()=>{setTab("todos");setFilterStatus("active");setSelStore("all");}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.03)"}>
