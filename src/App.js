@@ -670,7 +670,7 @@ export default function App(){
 
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
 
-      <div style={{maxWidth:620,margin:"0 auto",padding:"env(safe-area-inset-top, 20px) 14px 80px",paddingTop:"max(env(safe-area-inset-top), 44px)"}}>
+      <div style={{maxWidth:620,margin:"0 auto",padding:"max(env(safe-area-inset-top), 60px) 14px 80px"}}>
 
         {/* WHO ARE YOU -- first time setup */}
         {!currentUser&&(
