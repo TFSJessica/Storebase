@@ -183,7 +183,13 @@ export default function App(){
   const[toast,setToast]  =useState(null);
   const[selStore,setSelStore]=useState("all");
   const[storeDropdown,setStoreDropdown]=useState(false);
-  const[currentUser,setCurrentUser]=useState(()=>load("tfs_current_user",null));
+  const[currentUser,setCurrentUser]=useState(()=>{
+    const saved = load("tfs_current_user",null);
+    // If Jessica is saved but no login PIN set yet, clear so PIN setup shows
+    // If Jessica is saved and PIN exists, clear so PIN prompt shows on next load
+    if(saved && saved.name==="Jessica Castillanos") return null;
+    return saved;
+  });
   const[adminPin]  =useState(()=>load("tfs_admin_pin",null));
   const[adminLoginPin]=useState(()=>load("tfs_admin_login_pin",null));
   const[showLoginPin,setShowLoginPin]=useState(false);
