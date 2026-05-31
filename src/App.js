@@ -670,7 +670,7 @@ export default function App(){
 
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
 
-      <div style={{maxWidth:620,margin:"0 auto",padding:"24px 16px 80px"}}>
+      <div style={{maxWidth:620,margin:"0 auto",padding:"10px 14px 80px"}}>
 
         {/* WHO ARE YOU -- first time setup */}
         {!currentUser&&(
@@ -788,7 +788,7 @@ export default function App(){
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:9,letterSpacing:".25em",color:"#bbb",marginBottom:1}}>YOUR BAY AREA FLOORING AUTHORITY</div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:30,letterSpacing:".04em",lineHeight:1}}>THE FLOOR STORE</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:".04em",lineHeight:1}}>THE FLOOR STORE</div>
               {currentUser&&<div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
                 <div style={{width:18,height:18,borderRadius:"50%",background:currentUser.color||"#888",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:8,fontWeight:700,flexShrink:0}}>{initials(currentUser.name)}</div>
                 <span style={{fontSize:11,color:"#888",fontWeight:500}}>{currentUser.name}</span>
@@ -1038,7 +1038,7 @@ export default function App(){
           </div>}
 
           {/* Admin PIN setup */}
-          {!adminPin&&currentUser&&<div style={{background:"rgba(255,248,230,0.9)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:14,padding:"14px 16px",marginBottom:12,fontSize:13,color:"#92400e",lineHeight:1.6}}>
+          {!adminPin&&currentUser&&<div style={{background:"rgba(255,248,230,0.9)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:14,padding:"10px 12px",marginBottom:12,fontSize:13,color:"#92400e",lineHeight:1.6}}>
             <strong style={{color:"#78350f",display:"block",marginBottom:6}}>🔐 Set your admin PIN</strong>
             You haven't set an admin PIN yet. Set one to lock task creation, editing and deletion to yourself only.
             <button onClick={()=>setShowSetPin(true)} style={{display:"block",marginTop:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Set Admin PIN</button>
