@@ -19,7 +19,6 @@ const STORE_ID = name => STORE_NAMES.findIndex(s=>s.toLowerCase()===name.toLower
 const sid = name => { const n=name.toLowerCase().replace(/[\s\.]/g,"_"); const i=STORE_NAMES.findIndex(s=>s.toLowerCase()===n.split("_")[0]); return n+"_"+(i>=0?i:0); };
 
 const PRESET_PEOPLE = [
-  {name:"David Shapiro",    role:"Store Manager",     email:"DavidS@floorstores.com",    store:"Richmond",   storeIdx:0},
   {name:"Jake Popeyus",     role:"Store Manager",     email:"JacobP@floorstores.com",    store:"Concord",    storeIdx:1},
   {name:"Teza Malmirchegini",role:"Store Manager",    email:"TezaM@floorstores.com",     store:"Dublin",     storeIdx:2},
   {name:"Rose Fernandez",   role:"Store Manager",     email:"RoselleF@floorstores.com",  store:"S.F.",       storeIdx:3},
@@ -30,7 +29,7 @@ const PRESET_PEOPLE = [
   {name:"Gabriella Trozzo", role:"Store Manager",     email:"GabriellaT@floorstores.com",store:"San Jose",   storeIdx:8},
   {name:"Steve Boardman",   role:"Store Manager",     email:"SteveB@floorstores.com",    store:"Burlingame", storeIdx:10},
   {name:"Reggie Brown",     role:"Store Manager",     email:"ReggieB@floorstores.com",   store:"Fairfield",  storeIdx:11},
-  {name:"Katherine Castillo Batres",role:"Assistant Manager",email:"KatherineC@floorstores.com",store:"Richmond",  storeIdx:0},
+  {name:"Katherine Castillo Batres",role:"Store Manager",email:"KatherineC@floorstores.com",store:"Richmond",  storeIdx:0},
   {name:"Willie Jefferson", role:"Assistant Manager", email:"williej@floorstores.com",   store:"Concord",    storeIdx:1},
   {name:"Carlos Amaya",     role:"Assistant Manager", email:"CarlosA@floorstores.com",   store:"Dublin",     storeIdx:2},
   {name:"Francine Steele",  role:"Assistant Manager", email:"FrancineS@floorstores.com", store:"Santa Rosa", storeIdx:4},
@@ -390,6 +389,14 @@ export default function App(){
     setCurrentUser(user);
     save("tfs_current_user",user);
     if(playerId) setPeople(p=>p.map(x=>x.id===person.id?{...x,playerId}:x));
+    // Lock non-admins to their own store everywhere in the app
+    const isUserAdmin = person.name==="Jessica Castillanos" || person.store==="All Stores";
+    if(!isUserAdmin && person.store){
+      const matchedStore = stores.find(s=>s.name===person.store);
+      setSelStore(matchedStore?matchedStore.id:"all");
+    } else {
+      setSelStore("all");
+    }
     showToast("Welcome, "+person.name+"!");
   };
 
@@ -443,7 +450,7 @@ export default function App(){
   const totalInProg=todos.filter(t=>!t.done&&!isOv(t.due)).length;
   const pieStatus=[{label:"Completed",value:totalDone,color:"#16a34a"},{label:"In Progress",value:totalInProg,color:"#ca8a04"},{label:"Overdue",value:totalOvCount,color:"#dc2626"}];
   const pieByStore=storeStats.filter(s=>s.total>0).map(s=>({label:s.name,value:s.total,color:s.color}));
-  const myDayTodos=todos.filter(t=>!t.done&&(t.myDay||isToday(t.due)));
+  const myDayTodos=todos.filter(t=>!t.done&&(t.myDay||isToday(t.due))&&(selStore==="all"||t.storeId===selStore));
 
   const filteredTodos=useMemo(()=>todos.filter(t=>{
     if(selStore!=="all"&&t.storeId!==selStore)return false;
@@ -670,7 +677,7 @@ export default function App(){
 
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
 
-      <div style={{maxWidth:620,margin:"0 auto",padding:"max(env(safe-area-inset-top), 60px) 14px 80px"}}>
+      <div style={{maxWidth:620,margin:"0 auto",paddingTop:"calc(env(safe-area-inset-top, 0px) + 16px)",paddingLeft:14,paddingRight:14,paddingBottom:80}}>
 
         {/* WHO ARE YOU -- first time setup */}
         {!currentUser&&(
@@ -940,10 +947,11 @@ export default function App(){
               <button key={k} className={"fpill"+(filterStatus===k?" on":"")} onClick={()=>setFilterStatus(k)}>{l}</button>
             ))}
           </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+          {isAdminView&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
             <button className={"fpill"+(selStore==="all"?" on":"")} onClick={()=>setSelStore("all")}>All Stores</button>
             {stores.map(s=><button key={s.id} className={"fpill"+(selStore===s.id?" on":"")} onClick={()=>setSelStore(selStore===s.id?"all":s.id)} style={selStore===s.id?{background:s.color,borderColor:s.color,color:"#fff"}:{}}>{s.name}</button>)}
-          </div>
+          </div>}
+          {!isAdminView&&currentUser?.store&&<div style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>📍 Showing {currentUser.store} only</div>}
           {people.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
             <button className={"fpill"+(selPerson==="all"?" on":"")} onClick={()=>setSelPerson("all")}>Everyone</button>
             {people.map(p=><button key={p.id} className={"fpill"+(selPerson===p.id?" on":"")} onClick={()=>setSelPerson(selPerson===p.id?"all":p.id)}>{p.name}{p.playerId?" 🔔":""}</button>)}
@@ -1040,7 +1048,7 @@ export default function App(){
           {/* Admin PIN setup */}
           {!adminPin&&currentUser&&<div style={{background:"rgba(255,248,230,0.9)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:14,padding:"10px 12px",marginBottom:12,fontSize:13,color:"#92400e",lineHeight:1.6}}>
             <strong style={{color:"#78350f",display:"block",marginBottom:6}}>🔐 Set your admin PIN</strong>
-            You haven't set an admin PIN yet. Set one to lock task creation, editing and deletion to yourself only.
+            You haven&apos;t set an admin PIN yet. Set one to lock task creation, editing and deletion to yourself only.
             <button onClick={()=>setShowSetPin(true)} style={{display:"block",marginTop:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Set Admin PIN</button>
           </div>}
           {adminPin&&isAdmin&&<div style={{background:"rgba(220,252,231,0.9)",border:"1px solid rgba(22,163,74,0.3)",borderRadius:14,padding:"14px 16px",marginBottom:12,fontSize:13,color:"#14532d",lineHeight:1.6}}>
@@ -1054,12 +1062,19 @@ export default function App(){
             1. Add a team member here<br/>
             2. They open the app on their phone and tap <strong>"Enable Alerts"</strong><br/>
             3. They tap Allow when the browser asks<br/>
-            4. A 🔔 appears next to their name -- they're ready!<br/>
+            4. A 🔔 appears next to their name -- they are ready!<br/>
             5. Now when you assign them a task they get a real phone notification
           </div>
 
-          {people.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.2)",fontSize:14}}>No team members yet.</div>}
-          {people.map(p=>{
+          {(()=>{
+            const selStoreObj = stores.find(s=>s.id===selStore);
+            const teamForView = selStore==="all"
+              ? people
+              : people.filter(p=>p.store===selStoreObj?.name && (p.role==="Store Manager"||p.role==="Assistant Manager"));
+            return <>
+              {selStore!=="all"&&<div style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>📍 {selStoreObj?.name} Management</div>}
+              {teamForView.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.2)",fontSize:14}}>{selStore==="all"?"No team members yet.":"No manager assigned to this store yet."}</div>}
+              {teamForView.map(p=>{
             const assigned=todos.filter(t=>t.assigneeId===p.id&&!t.done);
             const overduePerson=assigned.filter(t=>isOv(t.due));
             return<div key={p.id} style={card}>
@@ -1081,7 +1096,9 @@ export default function App(){
                 <button style={{background:"none",border:"none",cursor:"pointer",fontSize:13,opacity:.25,color:"#1a1a1a"}} onClick={()=>deletePerson(p.id)}>✕</button>
               </div>
             </div>;
-          })}
+              })}
+            </>;
+          })()}
         </div>}
 
       </>
