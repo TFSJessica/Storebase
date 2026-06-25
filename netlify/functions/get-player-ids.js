@@ -6,7 +6,11 @@
 exports.handler = async () => {
   try {
     const { getStore } = require("@netlify/blobs");
-    const store = getStore("floorstore");
+    const store = getStore({
+      name: "floorstore",
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_BLOBS_TOKEN,
+    });
 
     const raw = await store.get("playerIds");
     const map = raw ? JSON.parse(raw) : {};
