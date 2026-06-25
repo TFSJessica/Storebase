@@ -10,7 +10,11 @@ exports.handler = async () => {
   let people = [];
   try {
     const { getStore } = require("@netlify/blobs");
-    const store = getStore("floorstore");
+    const store = getStore({
+      name: "floorstore",
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_BLOBS_TOKEN,
+    });
     const rawTasks = await store.get("todos");
     const rawPeople = await store.get("people");
     if (rawTasks) tasks = JSON.parse(rawTasks);
