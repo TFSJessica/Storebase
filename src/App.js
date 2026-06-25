@@ -19,6 +19,7 @@ const STORE_ID = name => STORE_NAMES.findIndex(s=>s.toLowerCase()===name.toLower
 const sid = name => { const n=name.toLowerCase().replace(/[\s\.]/g,"_"); const i=STORE_NAMES.findIndex(s=>s.toLowerCase()===n.split("_")[0]); return n+"_"+(i>=0?i:0); };
 
 const PRESET_PEOPLE = [
+  {name:"Katherine Castillo Batres",role:"Store Manager",email:"KatherineC@floorstores.com",store:"Richmond",  storeIdx:0},
   {name:"Jake Popeyus",     role:"Store Manager",     email:"JacobP@floorstores.com",    store:"Concord",    storeIdx:1},
   {name:"Teza Malmirchegini",role:"Store Manager",    email:"TezaM@floorstores.com",     store:"Dublin",     storeIdx:2},
   {name:"Rose Fernandez",   role:"Store Manager",     email:"RoselleF@floorstores.com",  store:"S.F.",       storeIdx:3},
@@ -29,7 +30,6 @@ const PRESET_PEOPLE = [
   {name:"Gabriella Trozzo", role:"Store Manager",     email:"GabriellaT@floorstores.com",store:"San Jose",   storeIdx:8},
   {name:"Steve Boardman",   role:"Store Manager",     email:"SteveB@floorstores.com",    store:"Burlingame", storeIdx:10},
   {name:"Reggie Brown",     role:"Store Manager",     email:"ReggieB@floorstores.com",   store:"Fairfield",  storeIdx:11},
-  {name:"Katherine Castillo Batres",role:"Store Manager",email:"KatherineC@floorstores.com",store:"Richmond",  storeIdx:0},
   {name:"Willie Jefferson", role:"Assistant Manager", email:"williej@floorstores.com",   store:"Concord",    storeIdx:1},
   {name:"Carlos Amaya",     role:"Assistant Manager", email:"CarlosA@floorstores.com",   store:"Dublin",     storeIdx:2},
   {name:"Francine Steele",  role:"Assistant Manager", email:"FrancineS@floorstores.com", store:"Santa Rosa", storeIdx:4},
@@ -677,7 +677,7 @@ export default function App(){
 
       {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
 
-      <div style={{maxWidth:620,margin:"0 auto",paddingTop:"calc(env(safe-area-inset-top, 0px) + 16px)",paddingLeft:14,paddingRight:14,paddingBottom:80}}>
+      <div style={{maxWidth:620,margin:"0 auto",paddingTop:"max(calc(env(safe-area-inset-top, 0px) + 24px), 64px)",paddingLeft:14,paddingRight:14,paddingBottom:80}}>
 
         {/* WHO ARE YOU -- first time setup */}
         {!currentUser&&(
