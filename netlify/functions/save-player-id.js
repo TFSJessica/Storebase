@@ -22,7 +22,11 @@ exports.handler = async (event) => {
 
   try {
     const { getStore } = require("@netlify/blobs");
-    const store = getStore("floorstore");
+    const store = getStore({
+      name: "floorstore",
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_BLOBS_TOKEN,
+    });
 
     // Read the current map of personId -> playerId
     let map = {};
