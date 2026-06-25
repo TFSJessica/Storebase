@@ -106,7 +106,7 @@ function useOneSignal() {
     return () => { try { document.head.removeChild(script); } catch(e){} };
   }, []);
 
-  const requestPermission = async () => {
+  const requestPermission = async (onGranted) => {
     try {
       if (window.OneSignal) {
         await window.OneSignal.Notifications.requestPermission();
@@ -116,6 +116,7 @@ function useOneSignal() {
           setPlayerId(id);
           save("tfs_player_id", id);
           setNotifStatus("granted");
+          if (onGranted) onGranted(id);
           return;
         }
       }
@@ -251,6 +252,27 @@ export default function App(){
     save("tfs_current_user",{...currentUser,playerId});
   },[playerId,currentUser]);
 
+  // Pull everyone else's playerIds from shared storage so this device knows
+  // who has notifications enabled, even if they subscribed on a different phone.
+  const syncPlayerIds = async () => {
+    try {
+      const res = await fetch("/.netlify/functions/get-player-ids");
+      const data = await res.json();
+      if(data?.playerIds){
+        setPeople(p=>p.map(x=>{
+          const remote = data.playerIds[x.id];
+          return remote?.playerId ? {...x, playerId: remote.playerId} : x;
+        }));
+      }
+    } catch(e) { console.warn("Failed to sync player IDs:", e); }
+  };
+  useEffect(()=>{
+    if(!currentUser) return;
+    syncPlayerIds();
+    const id = setInterval(syncPlayerIds, 60000);
+    return ()=>clearInterval(id);
+  },[currentUser]);
+
   // Due date reminder checker
   useEffect(()=>{
     const id=setInterval(async ()=>{
@@ -293,10 +315,23 @@ export default function App(){
       // saveTodo is already inside requireAdmin gate -- proceed
     const todo={id:uid(),title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:fPerson,assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay,done:false,created:new Date().toISOString(),subtasks:[],comments:[],photos:[],history:[{id:uid(),action:"Task created",by:currentUser?.name??"",at:new Date().toISOString()}]};
       setTodos(p=>[...p,todo]);closeForm();
-      // Send real push notification to assignee
-      if(person?.playerId){
+      // Send real push notification to assignee -- check shared storage first
+      // in case they enabled alerts on a different device than this one.
+      let livePlayerId = person?.playerId;
+      if(person && !livePlayerId){
+        try {
+          const res = await fetch("/.netlify/functions/get-player-ids");
+          const data = await res.json();
+          const remote = data?.playerIds?.[person.id];
+          if(remote?.playerId){
+            livePlayerId = remote.playerId;
+            setPeople(p=>p.map(x=>x.id===person.id?{...x,playerId:livePlayerId}:x));
+          }
+        } catch(e) { console.warn("Failed to refresh playerId before push:", e); }
+      }
+      if(livePlayerId){
         await sendPush({
-          playerIds:[person.playerId],
+          playerIds:[livePlayerId],
           title:"📋 New Task Assigned",
           message:todo.title+(store?" at "+store.name:""),
         });
@@ -611,7 +646,7 @@ export default function App(){
     );
   };
 
-  const TaskForm=()=>(
+  const taskFormJSX=(
     <div style={glass}>
       <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:".12em",marginBottom:16}}>{editTodo?"EDIT TASK":"NEW TASK"}</div>
       <div style={{marginBottom:10}}><div className="lbl">Task Title *</div><input value={fTitle} onChange={e=>setFTitle(e.target.value)} placeholder="What needs to be done?"/></div>
@@ -805,7 +840,18 @@ export default function App(){
             <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
               {totalOverdue>0&&<div style={{background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:999,padding:"3px 10px",fontSize:11,fontWeight:700}}>⚠ {totalOverdue} overdue</div>}
               {notifStatus!=="granted"&&(
-                <button onClick={requestPermission} style={{background:"#6366f1",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🔔 Enable Alerts</button>
+                <button onClick={()=>requestPermission(async (id)=>{
+                  // Save this device's playerId to local people list immediately
+                  setPeople(p=>p.map(x=>x.id===currentUser?.id?{...x,playerId:id}:x));
+                  // Also push it to shared storage so every device can see it
+                  try {
+                    await fetch("/.netlify/functions/save-player-id", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ personId: currentUser?.id, playerId: id, name: currentUser?.name }),
+                    });
+                  } catch(e) { console.warn("Failed to sync playerId:", e); }
+                })} style={{background:"#6366f1",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🔔 Enable Alerts</button>
               )}
               {notifStatus==="granted"&&<div style={{fontSize:11,color:"#16a34a",fontWeight:600}}>🔔 Alerts on</div>}
             </div>
@@ -933,7 +979,7 @@ export default function App(){
             <div style={{fontSize:12,color:"#aaa",marginTop:2}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
           </div>
           {!todoForm&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add to My Day</button>}
-          {todoForm&&<TaskForm/>}
+          {todoForm&&taskFormJSX}
           {myDayTodos.length===0?<div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.2)",fontSize:14}}>No tasks for today. Add one or mark tasks ☀️ from the Tasks tab.</div>
           :myDayTodos.map(t=><TaskCard key={t.id} todo={t}/>)}
         </div>}
@@ -941,7 +987,7 @@ export default function App(){
         {/* TASKS */}
         {tab==="todos"&&<div className="fade-up">
           {!todoForm&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add Task</button>}
-          {todoForm&&<TaskForm/>}
+          {todoForm&&taskFormJSX}
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
             {[["active","Active"],["done","Done"],["flagged","⭐ Starred"],["high","🔴 High"]].map(([k,l])=>(
               <button key={k} className={"fpill"+(filterStatus===k?" on":"")} onClick={()=>setFilterStatus(k)}>{l}</button>
