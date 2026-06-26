@@ -105,6 +105,7 @@ function useOneSignal() {
               setPlayerId(e.current.id);
               save("tfs_player_id", e.current.id);
               setNotifStatus("granted");
+              if (window.__tfsSyncPlayerId) window.__tfsSyncPlayerId(e.current.id);
             }
           });
         } catch(e) { console.warn("OneSignal init failed:", e); }
@@ -279,6 +280,23 @@ export default function App(){
     syncPlayerIds();
     const id = setInterval(syncPlayerIds, 60000);
     return ()=>clearInterval(id);
+  },[currentUser]);
+
+  // Whenever OneSignal confirms a fresh/changed subscription ID for THIS device,
+  // push it to the shared blob immediately -- not just on button tap -- so a
+  // stale ID can never linger after a reinstall or re-subscribe.
+  useEffect(()=>{
+    window.__tfsSyncPlayerId = async (id) => {
+      if(!currentUser || !id) return;
+      try {
+        await fetch("/.netlify/functions/save-player-id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ personId: currentUser.id, playerId: id, name: currentUser.name }),
+        });
+      } catch(e) { console.warn("Failed to auto-sync playerId on change:", e); }
+    };
+    return () => { delete window.__tfsSyncPlayerId; };
   },[currentUser]);
 
   // Due date reminder checker
