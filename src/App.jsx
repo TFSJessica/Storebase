@@ -1265,10 +1265,19 @@ export default function App(){
             {stores.map(s=><button key={s.id} className={"fpill"+(selStore===s.id?" on":"")} onClick={()=>setSelStore(selStore===s.id?"all":s.id)} style={selStore===s.id?{background:s.color,borderColor:s.color,color:"#fff"}:{}}>{s.name}</button>)}
           </div>}
           {!isAdminView&&currentUser?.store&&<div style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>📍 Showing {currentUser.store} only</div>}
-          {people.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
-            <button className={"fpill"+(selPerson==="all"?" on":"")} onClick={()=>setSelPerson("all")}>Everyone</button>
-            {people.map(p=><button key={p.id} className={"fpill"+(selPerson===p.id?" on":"")} onClick={()=>setSelPerson(selPerson===p.id?"all":p.id)}>{p.name}{p.playerId?" 🔔":""}</button>)}
-          </div>}
+          {(()=>{
+            // Person filter pills are scoped to whatever store is currently selected --
+            // for non-admins that's always locked to their own store, so they only ever
+            // see their own store's staff here instead of the whole company roster.
+            const selStoreName = stores.find(s=>s.id===selStore)?.name;
+            const peopleForFilter = selStore==="all" ? people : people.filter(p=>p.store===selStoreName);
+            return peopleForFilter.length>0 ? (
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:14}}>
+                <button className={"fpill"+(selPerson==="all"?" on":"")} onClick={()=>setSelPerson("all")}>Everyone</button>
+                {peopleForFilter.map(p=><button key={p.id} className={"fpill"+(selPerson===p.id?" on":"")} onClick={()=>setSelPerson(selPerson===p.id?"all":p.id)}>{p.name}{p.playerId?" 🔔":""}</button>)}
+              </div>
+            ) : null;
+          })()}
           {filterStatus==="active"&&(()=>{
             const ov=filteredTodos.filter(t=>!t.done&&isOv(t.due));
             const tod=filteredTodos.filter(t=>!t.done&&isToday(t.due)&&!isOv(t.due));
@@ -1290,7 +1299,7 @@ export default function App(){
           {todos.length>0&&<div style={glass}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:".12em",marginBottom:2}}>TASK BREAKDOWN</div>
             <div style={{fontSize:12,color:"#aaa",marginBottom:18}}>All stores combined</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr",gap:22}}>
               <div><div style={{fontSize:10,color:"#aaa",fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>By Status</div><PieChart slices={pieStatus.filter(s=>s.value>0)}/></div>
               <div><div style={{fontSize:10,color:"#aaa",fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>By Location</div><PieChart slices={pieByStore}/></div>
             </div>
@@ -1338,8 +1347,8 @@ export default function App(){
 
         {/* TEAM */}
         {tab==="team"&&<div className="fade-up">
-          {!personForm&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>setPersonForm(true)}>+ Add Team Member</button>}
-          {personForm&&<div style={glass}>
+          {!personForm&&isAdminView&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>setPersonForm(true)}>+ Add Team Member</button>}
+          {personForm&&isAdminView&&<div style={glass}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:".12em",marginBottom:16}}>NEW TEAM MEMBER</div>
             <div className="two-col" style={{marginBottom:10}}>
               <div><div className="lbl">Full Name *</div><input value={pName} onChange={e=>setPName(e.target.value)} placeholder="Jane Smith"/></div>
@@ -1358,8 +1367,8 @@ export default function App(){
             </div>
           </div>}
 
-          {/* Admin PIN setup */}
-          {!adminPin&&currentUser&&<div style={{background:"rgba(255,248,230,0.9)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:14,padding:"10px 12px",marginBottom:12,fontSize:13,color:"#92400e",lineHeight:1.6}}>
+          {/* Admin PIN setup -- admin only */}
+          {!adminPin&&isAdminView&&currentUser&&<div style={{background:"rgba(255,248,230,0.9)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:14,padding:"10px 12px",marginBottom:12,fontSize:13,color:"#92400e",lineHeight:1.6}}>
             <strong style={{color:"#78350f",display:"block",marginBottom:6}}>🔐 Set your admin PIN</strong>
             You haven&apos;t set an admin PIN yet. Set one to lock task creation, editing and deletion to yourself only.
             <button onClick={()=>setShowSetPin(true)} style={{display:"block",marginTop:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Set Admin PIN</button>
@@ -1370,14 +1379,14 @@ export default function App(){
             <button onClick={()=>{if(window.confirm("Remove admin PIN? Everyone will be able to edit tasks.")){save("tfs_admin_pin",null);save("tfs_admin_user_id",null);window.location.reload();}}} style={{background:"none",border:"none",fontSize:11,color:"#aaa",cursor:"pointer",marginTop:4,display:"block"}}>Remove PIN</button>
           </div>}
 
-          <div style={{...card,background:"rgba(240,245,255,0.85)",marginBottom:12,fontSize:13,color:"#4338ca",lineHeight:1.6}}>
+          {isAdminView&&<div style={{...card,background:"rgba(240,245,255,0.85)",marginBottom:12,fontSize:13,color:"#4338ca",lineHeight:1.6}}>
             <strong style={{color:"#312e81",display:"block",marginBottom:6}}>🔔 How push notifications work</strong>
             1. Add a team member here<br/>
             2. They open the app on their phone and tap <strong>"Enable Alerts"</strong><br/>
             3. They tap Allow when the browser asks<br/>
             4. A 🔔 appears next to their name -- they are ready!<br/>
             5. Now when you assign them a task they get a real phone notification
-          </div>
+          </div>}
 
           {(()=>{
             const selStoreObj = stores.find(s=>s.id===selStore);
@@ -1388,6 +1397,18 @@ export default function App(){
               {selStore!=="all"&&<div style={{fontSize:11,color:"#aaa",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>📍 {selStoreObj?.name} Management</div>}
               {teamForView.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.2)",fontSize:14}}>{selStore==="all"?"No team members yet.":"No manager assigned to this store yet."}</div>}
               {teamForView.map(p=>{
+            if(!isAdminView){
+              // Simple roster for store staff: just who they are, nothing else.
+              return <div key={p.id} style={card}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div className="av" style={{background:p.color}}>{initials(p.name)}</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14}}>{p.name}</div>
+                    {p.role&&<div style={{fontSize:11,color:"#888",marginTop:1}}>{p.role}</div>}
+                  </div>
+                </div>
+              </div>;
+            }
             const assigned=todos.filter(t=>t.assigneeId===p.id&&!t.done);
             const overduePerson=assigned.filter(t=>isOv(t.due));
             return<div key={p.id} style={card}>
