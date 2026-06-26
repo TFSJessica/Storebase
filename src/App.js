@@ -51,15 +51,23 @@ const PRIO_OPTS=[{v:"normal",l:"Normal"},{v:"medium",l:"Medium"},{v:"high",l:"Hi
 
 // ── OneSignal push notification helper ───────────────────────────────────────
 async function sendPush({ playerIds, title, message }) {
-  if (!playerIds || playerIds.length === 0) return;
+  if (!playerIds || playerIds.length === 0) return { ok: false, reason: "no-player-ids" };
   try {
-    await fetch("/.netlify/functions/notify", {
+    const res = await fetch("/.netlify/functions/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerIds, title, message }),
     });
+    let data = null;
+    try { data = await res.json(); } catch(e) {}
+    if (!res.ok) {
+      console.warn("Push notification request failed:", res.status, data);
+      return { ok: false, reason: "http-" + res.status, data };
+    }
+    return { ok: true, data };
   } catch (e) {
-    console.warn("Push notification failed:", e);
+    console.warn("Push notification fetch threw an error:", e);
+    return { ok: false, reason: "fetch-error", error: e.message };
   }
 }
 
@@ -330,12 +338,17 @@ export default function App(){
         } catch(e) { console.warn("Failed to refresh playerId before push:", e); }
       }
       if(livePlayerId){
-        await sendPush({
+        const result = await sendPush({
           playerIds:[livePlayerId],
           title:"📋 New Task Assigned",
           message:todo.title+(store?" at "+store.name:""),
         });
-        showToast("Push notification sent to "+person.name+"!");
+        if(result.ok){
+          showToast("Push notification sent to "+person.name+"!");
+        } else {
+          console.warn("Push send failed:", result);
+          showToast("Task assigned to "+person.name+" — push notification failed to send (check console)");
+        }
       } else if(person){
         showToast("Task assigned to "+person.name+" (they need to enable notifications)");
       } else {
