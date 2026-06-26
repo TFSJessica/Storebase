@@ -190,7 +190,18 @@ export default function App(){
   const[people,setPeople]=useState(()=>{ const p=load("tfs_pp6",null); if(p&&p.length) return p; const init=initPeople(); save("tfs_pp6",init); return init; });
   const[tab,setTab]      =useState("myday");
   const[toast,setToast]  =useState(null);
-  const[selStore,setSelStore]=useState("all");
+  const[selStore,setSelStore]=useState(()=>{
+    // BUGFIX: previously defaulted to "all" on every load/refresh, which made
+    // a returning non-admin's header silently show company-wide data (e.g.
+    // Jake's header showing Katherine's overdue task) until they logged out
+    // and back in. Now we derive it from whoever's session is already saved.
+    const saved = load("tfs_current_user",null);
+    if(!saved) return "all";
+    const isUserAdmin = saved.name==="Jessica Castillanos" || saved.store==="All Stores";
+    if(isUserAdmin || !saved.store) return "all";
+    const matched = stores.find(s=>s.name===saved.store);
+    return matched ? matched.id : "all";
+  });
   const[storeDropdown,setStoreDropdown]=useState(false);
   const[currentUser,setCurrentUser]=useState(()=>{
     const saved = load("tfs_current_user",null);
@@ -249,6 +260,7 @@ export default function App(){
   const[fTitle,setFTitle]=useState("");const[fStore,setFStore]=useState("");const[fDue,setFDue]=useState("");
   const[fNote,setFNote]=useState("");const[fPerson,setFPerson]=useState("");const[fPrio,setFPrio]=useState("normal");
   const[fRecur,setFRecur]=useState("");const[fRemind,setFRemind]=useState("");const[fMyDay,setFMyDay]=useState(false);
+  const[fPersonMulti,setFPersonMulti]=useState([]); // admin bulk-assign: array of person ids, each gets their own individual task
   const[pName,setPName]=useState("");const[pEmail,setPEmail]=useState("");const[pRole,setPRole]=useState("");const[pStore,setPStore]=useState("");
 
   useEffect(()=>save("tfs_td6",todos),[todos]);
@@ -358,6 +370,7 @@ export default function App(){
   const showToast=msg=>{setToast(msg);setTimeout(()=>setToast(null),3500);};
 
   const openForm=(todo=null)=>{
+    setFPersonMulti([]);
     if(todo){
       setEditTodo(todo.id);setFTitle(todo.title);setFStore(todo.storeId||"");setFDue(todo.due||"");
       setFNote(todo.note||"");setFPerson(todo.assigneeId||"");setFPrio(todo.priority||"normal");
@@ -370,47 +383,63 @@ export default function App(){
   };
   const closeForm=()=>{setTodoForm(false);setEditTodo(null);};
 
+  // Creates one standalone task for one person (or unassigned) and sends their push.
+  // Used both for the normal single-assignee flow and for bulk-assign, where it's
+  // called once per selected person so each gets their OWN task, not a shared one.
+  const createTaskFor = async (person, store) => {
+    const todo={id:uid(),title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:person?.id||"",assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay,done:false,created:new Date().toISOString(),subtasks:[],comments:[],photos:[],history:[{id:uid(),action:"Task created",by:currentUser?.name??"",at:new Date().toISOString()}]};
+    setTodos(p=>[...p,todo]);
+    let livePlayerId = person?.playerId;
+    if(person && !livePlayerId){
+      try {
+        const res = await fetch("/.netlify/functions/get-player-ids");
+        const data = await res.json();
+        const remote = data?.playerIds?.[person.id];
+        if(remote?.playerId){
+          livePlayerId = remote.playerId;
+          setPeople(p=>p.map(x=>x.id===person.id?{...x,playerId:livePlayerId}:x));
+        }
+      } catch(e) { console.warn("Failed to refresh playerId before push:", e); }
+    }
+    if(livePlayerId){
+      const result = await sendPush({
+        playerIds:[livePlayerId],
+        title:"📋 New Task Assigned",
+        message:todo.title+(store?" at "+store.name:""),
+      });
+      return { person, ok: result.ok };
+    }
+    return { person, ok: null }; // null = no device to notify, but task was still created
+  };
+
   const saveTodo=async()=>{
     if(!fTitle.trim())return;
     const store=stores.find(s=>s.id===fStore),person=people.find(p=>p.id===fPerson);
     if(editTodo){
       setTodos(p=>p.map(t=>t.id===editTodo?{...t,title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:fPerson,assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay}:t));
       closeForm();showToast("Task updated");
+      return;
+    }
+    // saveTodo is already inside requireAdmin gate -- proceed
+    if(isAdminView && fPersonMulti.length>0){
+      // BULK ASSIGN: one separate, individual task per selected person.
+      const selectedPeople = fPersonMulti.map(id=>people.find(p=>p.id===id)).filter(Boolean);
+      closeForm();
+      const results = await Promise.all(selectedPeople.map(p=>createTaskFor(p, store)));
+      const notified = results.filter(r=>r.ok).length;
+      showToast(`Created ${selectedPeople.length} individual tasks (${notified} notified)`);
+      return;
+    }
+    const result = await createTaskFor(person, store);
+    closeForm();
+    if(result.ok){
+      showToast("Push notification sent to "+person.name+"!");
+    } else if(result.ok===false){
+      showToast("Task assigned to "+person.name+" — push notification failed to send (check console)");
+    } else if(person){
+      showToast("Task assigned to "+person.name+" (they need to enable notifications)");
     } else {
-      // saveTodo is already inside requireAdmin gate -- proceed
-    const todo={id:uid(),title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:fPerson,assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay,done:false,created:new Date().toISOString(),subtasks:[],comments:[],photos:[],history:[{id:uid(),action:"Task created",by:currentUser?.name??"",at:new Date().toISOString()}]};
-      setTodos(p=>[...p,todo]);closeForm();
-      // Send real push notification to assignee -- check shared storage first
-      // in case they enabled alerts on a different device than this one.
-      let livePlayerId = person?.playerId;
-      if(person && !livePlayerId){
-        try {
-          const res = await fetch("/.netlify/functions/get-player-ids");
-          const data = await res.json();
-          const remote = data?.playerIds?.[person.id];
-          if(remote?.playerId){
-            livePlayerId = remote.playerId;
-            setPeople(p=>p.map(x=>x.id===person.id?{...x,playerId:livePlayerId}:x));
-          }
-        } catch(e) { console.warn("Failed to refresh playerId before push:", e); }
-      }
-      if(livePlayerId){
-        const result = await sendPush({
-          playerIds:[livePlayerId],
-          title:"📋 New Task Assigned",
-          message:todo.title+(store?" at "+store.name:""),
-        });
-        if(result.ok){
-          showToast("Push notification sent to "+person.name+"!");
-        } else {
-          console.warn("Push send failed:", result);
-          showToast("Task assigned to "+person.name+" — push notification failed to send (check console)");
-        }
-      } else if(person){
-        showToast("Task assigned to "+person.name+" (they need to enable notifications)");
-      } else {
-        showToast("Task added");
-      }
+      showToast("Task added");
     }
   };
 
@@ -544,15 +573,60 @@ export default function App(){
   const storeStats=stores.map(s=>{
     const st=todos.filter(t=>t.storeId===s.id);
     const total=st.length,done=st.filter(t=>t.done).length,overdue=st.filter(t=>!t.done&&isOv(t.due)).length;
-    return{...s,total,done,overdue,pct:total===0?100:Math.round((done/total)*100)};
+    // BUGFIX: a store with zero tasks used to score pct:100, which made every
+    // empty store tie for #1 on the leaderboard. Use null ("no data yet")
+    // instead, and sort those to the bottom rather than the top.
+    return{...s,total,done,overdue,pct:total===0?null:Math.round((done/total)*100)};
   });
   const sortedByOverdue=[...storeStats].filter(s=>s.overdue>0).sort((a,b)=>b.overdue-a.overdue);
-  const sortedByCompletion=[...storeStats].sort((a,b)=>b.pct-a.pct);
-  const totalOverdue=todos.filter(t=>!t.done&&isOv(t.due)).length;
-  const totalPending=todos.filter(t=>!t.done).length;
-  const totalDone=todos.filter(t=>t.done).length;
-  const totalOvCount=todos.filter(t=>!t.done&&isOv(t.due)).length;
-  const totalInProg=todos.filter(t=>!t.done&&!isOv(t.due)).length;
+  const sortedByCompletion=[...storeStats].sort((a,b)=>{
+    if(a.pct===null&&b.pct===null)return 0;
+    if(a.pct===null)return 1;
+    if(b.pct===null)return -1;
+    return b.pct-a.pct;
+  });
+
+  // Combined score per store: 70% completion rate + 30% no-overdue bonus.
+  // Used for the competitive leaderboard banner shown to non-admin users.
+  // Stores with no tasks get score:null ("no data yet") instead of a grade,
+  // so they don't artificially rank #1 or get graded F for having nothing to do.
+  const storeScores = storeStats.map(s=>{
+    if(s.total===0) return {...s, score:null, grade:"–", gradeColor:"#bbb", gradeLabel:"No tasks yet"};
+    const overduePenalty = Math.min(s.overdue*10, 30);
+    const score = Math.max(0, Math.round(s.pct*0.7 + (100-overduePenalty)*0.3));
+    let grade, gradeColor, gradeLabel;
+    if(score>=90){grade="A";gradeColor="#16a34a";gradeLabel="Excellent";}
+    else if(score>=80){grade="B";gradeColor="#ca8a04";gradeLabel="Good";}
+    else if(score>=70){grade="C";gradeColor="#d97706";gradeLabel="Needs Work";}
+    else if(score>=60){grade="D";gradeColor="#ea580c";gradeLabel="Falling Behind";}
+    else {grade="F";gradeColor="#dc2626";gradeLabel="Critical";}
+    return {...s, score, grade, gradeColor, gradeLabel};
+  }).sort((a,b)=>{
+    if(a.score===null&&b.score===null)return 0;
+    if(a.score===null)return 1;
+    if(b.score===null)return -1;
+    return b.score-a.score;
+  });
+  const scoredStores = storeScores.filter(s=>s.score!==null);
+  const companyAvgScore = scoredStores.length ? Math.round(scoredStores.reduce((sum,s)=>sum+s.score,0)/scoredStores.length) : 0;
+  const myStoreScore = storeScores.find(s=>s.id===selStore);
+  const myStoreRank = (myStoreScore && myStoreScore.score!==null) ? storeScores.findIndex(s=>s.id===selStore)+1 : null;
+  // Biggest problem stores for the admin executive view: scored, sorted worst-first.
+  const problemStores = [...scoredStores].sort((a,b)=>a.score-b.score).slice(0,3);
+
+  // Header stat cards (Stores/My Day/Open/Overdue) are scoped to the
+  // logged-in user's own store for non-admins, and company-wide for admin.
+  // This uses the SAME selStore that's already locked to their store on
+  // login, so it always matches what they see in Tasks/My Day/Team too.
+  const headerScopedTodos = (isAdminView || selStore==="all")
+    ? todos
+    : todos.filter(t=>t.storeId===selStore);
+
+  const totalOverdue=headerScopedTodos.filter(t=>!t.done&&isOv(t.due)).length;
+  const totalPending=headerScopedTodos.filter(t=>!t.done).length;
+  const totalDone=headerScopedTodos.filter(t=>t.done).length;
+  const totalOvCount=headerScopedTodos.filter(t=>!t.done&&isOv(t.due)).length;
+  const totalInProg=headerScopedTodos.filter(t=>!t.done&&!isOv(t.due)).length;
   const pieStatus=[{label:"Completed",value:totalDone,color:"#16a34a"},{label:"In Progress",value:totalInProg,color:"#ca8a04"},{label:"Overdue",value:totalOvCount,color:"#dc2626"}];
   const pieByStore=storeStats.filter(s=>s.total>0).map(s=>({label:s.name,value:s.total,color:s.color}));
   const myDayTodos=todos.filter(t=>!t.done&&(t.myDay||isToday(t.due))&&(selStore==="all"||t.storeId===selStore));
@@ -722,8 +796,38 @@ export default function App(){
       <div style={{marginBottom:10}}><div className="lbl">Task Title *</div><input value={fTitle} onChange={e=>setFTitle(e.target.value)} placeholder="What needs to be done?"/></div>
       <div className="two-col" style={{marginBottom:10}}>
         <div><div className="lbl">Store</div><select value={fStore} onChange={e=>setFStore(e.target.value)}><option value="">No store</option>{stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-        <div><div className="lbl">Assign To</div><select value={fPerson} onChange={e=>setFPerson(e.target.value)}><option value="">Unassigned</option>{people.map(p=><option key={p.id} value={p.id}>{p.name}{p.playerId?" 🔔":""}</option>)}</select></div>
+        <div>
+          <div className="lbl">Assign To</div>
+          <select value={fPerson} onChange={e=>{setFPerson(e.target.value);if(e.target.value)setFPersonMulti([]);}} disabled={fPersonMulti.length>0}>
+            <option value="">Unassigned</option>
+            {people.map(p=><option key={p.id} value={p.id}>{p.name}{p.playerId?" 🔔":""}</option>)}
+          </select>
+        </div>
       </div>
+      {/* Bulk-assign: admin-only, new tasks only. Each checked person gets their OWN individual task,
+          not one shared task -- so it shows up on each person's list separately and any one of them
+          completing it doesn't complete it for the others. */}
+      {isAdminView && !editTodo && (
+        <div style={{marginBottom:10,background:"rgba(0,0,0,0.025)",border:"1px solid rgba(0,0,0,0.06)",borderRadius:10,padding:"10px 12px"}}>
+          <div className="lbl" style={{marginBottom:6}}>Or assign to multiple people (creates one individual task per person)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {people.map(p=>{
+              const checked = fPersonMulti.includes(p.id);
+              return (
+                <label key={p.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"4px 9px",borderRadius:999,cursor:"pointer",background:checked?"#1a1a1a":"rgba(0,0,0,0.05)",color:checked?"#fff":"#555",border:"1px solid "+(checked?"#1a1a1a":"rgba(0,0,0,0.08)")}}>
+                  <input type="checkbox" checked={checked} style={{display:"none"}}
+                    onChange={()=>{
+                      setFPersonMulti(m=>checked?m.filter(id=>id!==p.id):[...m,p.id]);
+                      if(!checked) setFPerson(""); // multi-select takes over from the single picker
+                    }}/>
+                  {p.name}{p.playerId?" 🔔":""}
+                </label>
+              );
+            })}
+          </div>
+          {fPersonMulti.length>0&&<div style={{fontSize:11,color:"#888",marginTop:6}}>{fPersonMulti.length} people selected — {fPersonMulti.length} separate tasks will be created.</div>}
+        </div>
+      )}
       <div className="two-col" style={{marginBottom:10}}>
         <div><div className="lbl">Due Date</div><input type="datetime-local" value={fDue} onChange={e=>setFDue(e.target.value)}/></div>
         <div><div className="lbl">Reminder</div><input type="datetime-local" value={fRemind} onChange={e=>setFRemind(e.target.value)}/></div>
@@ -738,7 +842,7 @@ export default function App(){
         <label htmlFor="myday" style={{fontSize:13,color:"#555",cursor:"pointer"}}>☀️ Add to My Day</label>
       </div>
       <div style={{display:"flex",gap:10}}>
-        <button className="btn-dark" style={{width:"auto",padding:"10px 22px"}} onClick={saveTodo} disabled={!fTitle.trim()}>{editTodo?"Save Changes":fPerson?"Add & Notify":"Add Task"}</button>
+        <button className="btn-dark" style={{width:"auto",padding:"10px 22px"}} onClick={saveTodo} disabled={!fTitle.trim()}>{editTodo?"Save Changes":fPersonMulti.length>0?`Create ${fPersonMulti.length} Tasks`:fPerson?"Add & Notify":"Add Task"}</button>
         <button className="btn-ghost" onClick={closeForm}>Cancel</button>
       </div>
     </div>
@@ -947,7 +1051,7 @@ export default function App(){
             </div>
             {/* Open card with big % */}
             <div style={{background:"rgba(0,0,0,0.03)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .15s"}}
-              onClick={()=>{setTab("todos");setFilterStatus("active");setSelStore("all");}}
+              onClick={()=>{setTab("todos");setFilterStatus("active");if(isAdminView)setSelStore("all");}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.03)"}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:2}}>
@@ -966,7 +1070,7 @@ export default function App(){
             </div>
             {/* Overdue card with BIG obnoxious % */}
             <div style={{background:totalOverdue>0?"rgba(220,38,38,0.08)":"rgba(0,0,0,0.03)",borderRadius:10,padding:"10px 12px",border:totalOverdue>0?"1px solid rgba(220,38,38,0.2)":"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"all .15s",position:"relative",overflow:"hidden"}}
-              onClick={()=>{setTab("todos");setFilterStatus("active");setSelStore("all");}}
+              onClick={()=>{setTab("todos");setFilterStatus("active");if(isAdminView)setSelStore("all");}}
               onMouseEnter={e=>e.currentTarget.style.background=totalOverdue>0?"rgba(220,38,38,0.14)":"rgba(0,0,0,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background=totalOverdue>0?"rgba(220,38,38,0.08)":"rgba(0,0,0,0.03)"}>
               {/* Giant % watermark in background */}
@@ -996,6 +1100,99 @@ export default function App(){
             </div>
           </div>
         </div>
+
+        {/* YOUR STORE VS COMPANY -- competitive leaderboard banner for non-admin users */}
+        {!isAdminView && myStoreScore && myStoreScore.score!==null && (
+          <div style={{background:`linear-gradient(135deg, ${myStoreScore.color}18, ${myStoreScore.color}08)`,border:`1.5px solid ${myStoreScore.color}44`,borderRadius:16,padding:"16px 18px",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <div>
+                <div style={{fontSize:10,color:myStoreScore.color,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase"}}>Your Store</div>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,color:"#1a1a1a",lineHeight:1.1}}>{myStoreScore.name}</div>
+                <div style={{fontSize:12,color:"#888",marginTop:2}}>Ranked #{myStoreRank} of {scoredStores.length} stores</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:44,color:myStoreScore.gradeColor,lineHeight:1}}>{myStoreScore.grade}</div>
+                <div style={{fontSize:11,color:myStoreScore.gradeColor,fontWeight:700}}>{myStoreScore.gradeLabel}</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+              <div style={{background:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:"#1a1a1a",lineHeight:1}}>{myStoreScore.score}/100</div>
+                <div style={{fontSize:8,color:"#aaa",fontWeight:600,letterSpacing:".05em",marginTop:2}}>SCORE</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:"#1a1a1a",lineHeight:1}}>{myStoreScore.done}/{myStoreScore.total}</div>
+                <div style={{fontSize:8,color:"#aaa",fontWeight:600,letterSpacing:".05em",marginTop:2}}>TASKS DONE</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:myStoreScore.overdue>0?"#dc2626":"#1a1a1a",lineHeight:1}}>{myStoreScore.overdue}</div>
+                <div style={{fontSize:8,color:myStoreScore.overdue>0?"#dc2626":"#aaa",fontWeight:600,letterSpacing:".05em",marginTop:2}}>OVERDUE</div>
+              </div>
+            </div>
+            <div style={{background:"rgba(0,0,0,0.08)",borderRadius:999,height:7,overflow:"hidden",marginBottom:5}}>
+              <div style={{height:"100%",borderRadius:999,background:myStoreScore.color,width:myStoreScore.score+"%",transition:"width .6s ease"}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#999"}}>
+              <span>Your score: {myStoreScore.score}/100</span>
+              <span>Company avg: {companyAvgScore}/100</span>
+            </div>
+            {myStoreScore.score < companyAvgScore && (
+              <div style={{marginTop:9,background:"rgba(220,38,38,0.08)",borderRadius:8,padding:"7px 11px",fontSize:11,color:"#dc2626",fontWeight:500}}>
+                📉 You're {companyAvgScore-myStoreScore.score} points below the company average.
+              </div>
+            )}
+            {myStoreScore.score >= companyAvgScore && myStoreRank<=3 && (
+              <div style={{marginTop:9,background:"rgba(22,163,74,0.08)",borderRadius:8,padding:"7px 11px",fontSize:11,color:"#16a34a",fontWeight:500}}>
+                🏆 You're in the top 3! Keep it up.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Simplified version for a non-admin whose store has no tasks yet -- no rank/grade to show */}
+        {!isAdminView && myStoreScore && myStoreScore.score===null && (
+          <div style={{background:"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.06)",borderRadius:16,padding:"16px 18px",marginBottom:12,textAlign:"center"}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:"#1a1a1a"}}>{myStoreScore.name}</div>
+            <div style={{fontSize:12,color:"#aaa",marginTop:4}}>No tasks yet — once you have tasks, you'll see your store's score and rank here.</div>
+          </div>
+        )}
+
+        {/* EXECUTIVE VIEW -- company-wide health summary for the admin, replacing the per-store banner */}
+        {isAdminView && (
+          <div style={{background:"linear-gradient(135deg, rgba(26,26,26,0.95), rgba(26,26,26,0.85))",borderRadius:16,padding:"18px 18px",marginBottom:12,color:"#fff"}}>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Company Health · All 12 Stores</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+              <div style={{background:"rgba(255,255,255,0.08)",borderRadius:12,padding:"10px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,lineHeight:1}}>{companyAvgScore}</div>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".05em",marginTop:3}}>AVG SCORE</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.08)",borderRadius:12,padding:"10px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,lineHeight:1}}>{todos.length?Math.round((todos.filter(t=>t.done).length/todos.length)*100):0}%</div>
+                <div style={{fontSize:9,color:"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".05em",marginTop:3}}>COMPLETION</div>
+              </div>
+              <div style={{background:totalOverdue>0?"rgba(220,38,38,0.25)":"rgba(255,255,255,0.08)",borderRadius:12,padding:"10px",textAlign:"center"}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,lineHeight:1,color:totalOverdue>0?"#fca5a5":"#fff"}}>{totalPending?Math.round((totalOverdue/totalPending)*100):0}%</div>
+                <div style={{fontSize:9,color:totalOverdue>0?"#fca5a5":"rgba(255,255,255,0.5)",fontWeight:600,letterSpacing:".05em",marginTop:3}}>OVERDUE RATE</div>
+              </div>
+            </div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Biggest Problem Stores</div>
+            {problemStores.length===0 && <div style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>No scored stores yet — add some tasks to see this.</div>}
+            {problemStores.map((s,i)=>(
+              <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:i<problemStores.length-1?"1px solid rgba(255,255,255,0.1)":"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:2,background:s.color,flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:600}}>{s.name}</span>
+                  {s.overdue>0&&<span style={{background:"rgba(220,38,38,0.3)",color:"#fca5a5",borderRadius:999,padding:"1px 7px",fontSize:9,fontWeight:700}}>⚠ {s.overdue} overdue</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{s.score}/100</span>
+                  <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:s.gradeColor}}>{s.grade}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
 
         {/* STORE DROPDOWN -- rendered outside header so it floats above everything */}
         {storeDropdown&&(
@@ -1048,7 +1245,7 @@ export default function App(){
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:".08em"}}>☀️ My Day</div>
             <div style={{fontSize:12,color:"#aaa",marginTop:2}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div>
           </div>
-          {!todoForm&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add to My Day</button>}
+          {!todoForm&&isAdminView&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add to My Day</button>}
           {todoForm&&taskFormJSX}
           {myDayTodos.length===0?<div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.2)",fontSize:14}}>No tasks for today. Add one or mark tasks ☀️ from the Tasks tab.</div>
           :myDayTodos.map(t=><TaskCard key={t.id} todo={t}/>)}
@@ -1056,7 +1253,7 @@ export default function App(){
 
         {/* TASKS */}
         {tab==="todos"&&<div className="fade-up">
-          {!todoForm&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add Task</button>}
+          {!todoForm&&isAdminView&&<button className="btn-dark" style={{width:"100%",marginBottom:14,padding:12,fontSize:14}} onClick={()=>requireAdmin(()=>openForm())}>+ Add Task</button>}
           {todoForm&&taskFormJSX}
           <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
             {[["active","Active"],["done","Done"],["flagged","⭐ Starred"],["high","🔴 High"]].map(([k,l])=>(
@@ -1111,10 +1308,10 @@ export default function App(){
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:7}}>
                     {s.overdue>0&&<span style={{background:"#fee2e2",color:"#dc2626",border:"1px solid #fca5a5",borderRadius:999,padding:"1px 7px",fontSize:10,fontWeight:700}}>⚠ {s.overdue}</span>}
-                    <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,color:s.pct===100?"#16a34a":s.pct>=80?"#ca8a04":"#1a1a1a"}}>{s.pct}%</span>
+                    <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,color:s.pct===null?"#ccc":s.pct===100?"#16a34a":s.pct>=80?"#ca8a04":"#1a1a1a"}}>{s.pct===null?"—":s.pct+"%"}</span>
                   </div>
                 </div>
-                <div className="bar-bg"><div className="bar-fill" style={{width:s.pct+"%",background:s.pct===100?"#16a34a":s.pct>=80?"#ca8a04":s.pct>=50?"#d97706":"#dc2626"}}/></div>
+                <div className="bar-bg"><div className="bar-fill" style={{width:(s.pct||0)+"%",background:s.pct===100?"#16a34a":s.pct>=80?"#ca8a04":s.pct>=50?"#d97706":"#dc2626"}}/></div>
               </div>
             ))}
           </div>
