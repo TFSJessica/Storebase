@@ -50,13 +50,13 @@ const RECUR_OPTS=[{v:"",l:"None"},{v:"daily",l:"Daily"},{v:"weekly",l:"Weekly"},
 const PRIO_OPTS=[{v:"normal",l:"Normal"},{v:"medium",l:"Medium"},{v:"high",l:"High"}];
 
 // ── OneSignal push notification helper ───────────────────────────────────────
-async function sendPush({ playerIds, title, message }) {
+async function sendPush({ playerIds, title, message, type }) {
   if (!playerIds || playerIds.length === 0) return { ok: false, reason: "no-player-ids" };
   try {
     const res = await fetch("/.netlify/functions/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerIds, title, message }),
+      body: JSON.stringify({ playerIds, title, message, type }),
     });
     let data = null;
     try { data = await res.json(); } catch(e) {}
@@ -350,16 +350,33 @@ export default function App(){
     return () => { delete window.__tfsSyncPlayerId; };
   },[currentUser]);
 
-  // Due date reminder checker
+  // Two SEPARATE, independent notification checks:
+  // 1) Due Date -- always fires automatically as a task's due date approaches,
+  //    so the assignee knows when it's due. No setup needed, this is automatic.
+  // 2) Reminder -- only fires if a Reminder time was explicitly set on the
+  //    task. It's an optional EXTRA ping at whatever time was chosen, on top
+  //    of (not instead of) the due-date ping.
   useEffect(()=>{
     const id=setInterval(async ()=>{
-      const dueSoon=todos.filter(t=>!t.done&&t.due&&new Date(t.due)-Date.now()<600000&&new Date(t.due)-Date.now()>0);
+      const dueSoon=todos.filter(t=>!t.done&&t.due&&!t.dueSent&&new Date(t.due)-Date.now()<600000&&new Date(t.due)-Date.now()>0);
       for(const t of dueSoon){
         showToast("⏰ Due soon: "+t.title);
+        setTodos(p=>p.map(x=>x.id===t.id?{...x,dueSent:true}:x)); // don't re-fire every minute
         if(t.assigneeId){
           const person=people.find(p=>p.id===t.assigneeId);
           if(person?.playerId){
-            await sendPush({playerIds:[person.playerId],title:"⏰ Task Due Soon",message:t.title+(t.storeName?" — "+t.storeName:"")});
+            await sendPush({playerIds:[person.playerId],title:"⏰ Task Due Soon",message:t.title});
+          }
+        }
+      }
+      const remindersDue=todos.filter(t=>!t.done&&t.remind&&!t.remindSent&&new Date(t.remind)-Date.now()<600000&&new Date(t.remind)-Date.now()>0);
+      for(const t of remindersDue){
+        showToast("🔔 Reminder: "+t.title);
+        setTodos(p=>p.map(x=>x.id===t.id?{...x,remindSent:true}:x)); // don't re-fire every minute
+        if(t.assigneeId){
+          const person=people.find(p=>p.id===t.assigneeId);
+          if(person?.playerId){
+            await sendPush({playerIds:[person.playerId],title:"🔔 Reminder",message:t.title});
           }
         }
       }
@@ -383,6 +400,14 @@ export default function App(){
   };
   const closeForm=()=>{setTodoForm(false);setEditTodo(null);};
 
+  // Notification title escalates with task priority -- normal stays simple,
+  // medium gets a clear priority flag, high gets a much louder visual treatment.
+  const PUSH_TITLE_BY_PRIORITY = {
+    normal: "📋 New Task Assigned",
+    medium: "🟠 New Task Assigned — Medium Priority",
+    high:   "🚨 HIGH PRIORITY TASK ASSIGNED 🚨",
+  };
+
   // Creates one standalone task for one person (or unassigned) and sends their push.
   // Used both for the normal single-assignee flow and for bulk-assign, where it's
   // called once per selected person so each gets their OWN task, not a shared one.
@@ -404,19 +429,21 @@ export default function App(){
     if(livePlayerId){
       const result = await sendPush({
         playerIds:[livePlayerId],
-        title:"📋 New Task Assigned",
-        message:todo.title+(store?" at "+store.name:""),
+        title: PUSH_TITLE_BY_PRIORITY[todo.priority] || PUSH_TITLE_BY_PRIORITY.normal,
+        message:(todo.priority==="high"?"⚠️ ":"")+todo.title,
+        type: todo.priority, // "normal" | "medium" | "high" -- read by notify.js to set delivery priority + iOS interruption level
       });
       return { person, ok: result.ok };
     }
     return { person, ok: null }; // null = no device to notify, but task was still created
   };
 
+
   const saveTodo=async()=>{
     if(!fTitle.trim())return;
     const store=stores.find(s=>s.id===fStore),person=people.find(p=>p.id===fPerson);
     if(editTodo){
-      setTodos(p=>p.map(t=>t.id===editTodo?{...t,title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:fPerson,assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay}:t));
+      setTodos(p=>p.map(t=>t.id===editTodo?{...t,title:fTitle.trim(),storeId:fStore,storeName:store?.name??"",storeColor:store?.color??"#1a1a1a",assigneeId:fPerson,assigneeName:person?.name??"",assigneeEmail:person?.email??"",due:fDue,note:fNote.trim(),priority:fPrio,recur:fRecur,remind:fRemind,myDay:fMyDay,dueSent:t.due===fDue?t.dueSent:false,remindSent:t.remind===fRemind?t.remindSent:false}:t));
       closeForm();showToast("Task updated");
       return;
     }
