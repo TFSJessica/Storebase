@@ -12,7 +12,8 @@ exports.handler = async (event) => {
 
   const payload = {
     app_id: process.env.ONESIGNAL_APP_ID,
-    include_player_ids: playerIds,
+    target_channel: "push",
+    include_subscription_ids: playerIds,
     headings: { en: title || "The Floor Store" },
     contents: { en: message },
     url: url || process.env.APP_URL || "https://tfsmakeithappen.netlify.app",
@@ -21,7 +22,7 @@ exports.handler = async (event) => {
     priority: type === "overdue" ? 10 : 5,
   };
 
-  const res = await fetch("https://onesignal.com/api/v1/notifications", {
+  const res = await fetch("https://api.onesignal.com/notifications?c=push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
