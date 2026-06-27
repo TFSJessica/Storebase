@@ -6,8 +6,15 @@ const JESSICA_EMAIL = process.env.ADMIN_EMAIL;
 const JESSICA_PLAYER_ID = process.env.JESSICA_PLAYER_ID; // set after Jessica enables notifications
 const APP_URL = process.env.APP_URL || "https://tfsmakeithappen.netlify.app";
 
+// FIXME (flagged, not yet resolved): this list is a hand-maintained snapshot,
+// not pulled from the live Team tab roster. Any add/remove done in the app
+// will NOT show up here until someone edits this array by hand. "David
+// Shapiro" was a stale leftover for Richmond -- Katherine Castillo Batres is
+// the real, current Richmond manager (already removed below). Ideally this
+// should read from the same shared "people" storage check-overdue.js expects,
+// once that sync path is confirmed.
 const PEOPLE = [
-  { name: "David Shapiro",              email: "DavidS@floorstores.com",         store: "Richmond"   },
+  { name: "Katherine Castillo Batres", email: "KatherineC@floorstores.com",     store: "Richmond"   },
   { name: "Jake Popeyus",               email: "JacobP@floorstores.com",         store: "Concord"    },
   { name: "Teza Malmirchegini",         email: "TezaM@floorstores.com",          store: "Dublin"     },
   { name: "Rose Fernandez",             email: "RoselleF@floorstores.com",       store: "S.F."       },
@@ -18,7 +25,6 @@ const PEOPLE = [
   { name: "Gabriella Trozzo",          email: "GabriellaT@floorstores.com",     store: "San Jose"   },
   { name: "Steve Boardman",            email: "SteveB@floorstores.com",         store: "Burlingame" },
   { name: "Reggie Brown",              email: "ReggieB@floorstores.com",        store: "Fairfield"  },
-  { name: "Katherine Castillo Batres", email: "KatherineC@floorstores.com",     store: "Richmond"   },
   { name: "Willie Jefferson",          email: "williej@floorstores.com",        store: "Concord"    },
   { name: "Carlos Amaya",              email: "CarlosA@floorstores.com",        store: "Dublin"     },
   { name: "Francine Steele",           email: "FrancineS@floorstores.com",      store: "Santa Rosa" },
@@ -43,13 +49,18 @@ function fmtDate(iso) {
 function fmtDay(iso) {
   return new Date(iso).toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" });
 }
+// BUGFIX: a store with zero tasks used to score 100 (a fake perfect grade).
+// Now returns null ("no data yet") so the scorecard can show it honestly
+// instead of grading an empty store as an A -- same fix applied to the
+// in-app leaderboard earlier today.
 function calcScore(tasks) {
-  if (!tasks.length) return 100;
+  if (!tasks.length) return null;
   const done = tasks.filter(t=>t.done).length;
   const ov = tasks.filter(t=>!t.done&&isOverdue(t.due)).length;
   return Math.max(0, Math.round((done/tasks.length)*100*0.7+(100-Math.min(ov*10,30))*0.3));
 }
 function getGrade(score) {
+  if (score === null) return "–";
   if (score>=90) return "A";
   if (score>=80) return "B";
   if (score>=70) return "C";
@@ -89,18 +100,18 @@ function storeSummaryTable(allTasks) {
   const stores = ["Richmond","Concord","Dublin","S.F.","Santa Rosa","Marin","San Carlos","Sunnyvale","San Jose","SAH","Burlingame","Fairfield"];
   const rows = stores.map(store => {
     const st = allTasks.filter(t=>t.storeName===store);
-    const done = st.filter(t=>t.done).length;
     const open = st.filter(t=>!t.done).length;
     const ov = st.filter(t=>!t.done&&isOverdue(t.due)).length;
     const score = calcScore(st);
     const grade = getGrade(score);
+    const gradeLabel = score === null ? "No tasks yet" : `${grade} (${score})`;
     return `
       <tr style="border-bottom:1px solid #f0ede8;">
         <td style="padding:10px 16px;font-size:13px;font-weight:600;color:#1a1a1a;">${store}</td>
         <td style="padding:10px 8px;font-size:13px;color:#555;text-align:center;">${open}</td>
         <td style="padding:10px 8px;font-size:13px;color:${ov>0?"#dc2626":"#16a34a"};font-weight:${ov>0?700:400};text-align:center;">${ov>0?"! "+ov:"OK"}</td>
         <td style="padding:10px 8px;text-align:center;">
-          <span style="background:${score>=90?"#dcfce7":score>=80?"#fef9c3":"#fee2e2"};color:${score>=90?"#16a34a":score>=80?"#ca8a04":"#dc2626"};border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;">${grade} (${score})</span>
+          <span style="background:${score===null?"#f0ede8":score>=90?"#dcfce7":score>=80?"#fef9c3":"#fee2e2"};color:${score===null?"#aaa":score>=90?"#16a34a":score>=80?"#ca8a04":"#dc2626"};border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;">${gradeLabel}</span>
         </td>
       </tr>`;
   }).join("");
@@ -194,15 +205,6 @@ async function sendEmail(to, subject, html) {
     }),
   });
   return res.ok;
-}
-
-async function sendPush(playerIds, title, message) {
-  if (!playerIds || !playerIds.length) return;
-  await fetch("/.netlify/functions/notify", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerIds, title, message }),
-  }).catch(() => {});
 }
 
 exports.handler = async () => {
