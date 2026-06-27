@@ -15,7 +15,7 @@ exports.handler = async (event) => {
   let iosInterruptionLevel; // omitted unless we want to override the default ("active")
   if (type === "overdue" || type === "high") {
     priority = 10;
-    iosInterruptionLevel = "time-sensitive"; // breaks through Focus modes, shown with a more urgent banner on iOS 15+
+    iosInterruptionLevel = "time_sensitive"; // breaks through Focus modes, shown with a more urgent banner on iOS 15+ -- OneSignal expects an underscore here, not a hyphen
   } else if (type === "medium") {
     priority = 7;
   }
