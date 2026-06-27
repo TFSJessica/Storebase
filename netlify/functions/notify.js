@@ -40,6 +40,11 @@ exports.handler = async (event) => {
     body: JSON.stringify(payload),
   });
   const data = await res.json();
+  if (!res.ok) {
+    console.error("OneSignal push failed:", res.status, JSON.stringify(data));
+  } else {
+    console.log("OneSignal push sent OK:", JSON.stringify(data));
+  }
   return {
     statusCode: res.ok ? 200 : 500,
     headers: { "Access-Control-Allow-Origin": "*" },
