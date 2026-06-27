@@ -133,7 +133,9 @@ function storeSummaryTable(allTasks) {
     </td></tr>`;
 }
 
-function buildEmail(person, tasks) {
+// Shared by buildEmail() and the send loop -- one source of truth for
+// whether a person has anything worth reporting today.
+function getDigestBreakdown(person, tasks) {
   const myTasks = person.isAdmin ? tasks : tasks.filter(t => t.assigneeName === person.name || t.storeName === person.store);
   const overdue  = myTasks.filter(t => !t.done && isOverdue(t.due));
   const today    = myTasks.filter(t => !t.done && isDueToday(t.due) && !isOverdue(t.due));
@@ -142,9 +144,13 @@ function buildEmail(person, tasks) {
     if (!t.done || !t.completedAt) return false;
     return new Date() - new Date(t.completedAt) < 86400000;
   });
-
-  const todayStr = fmtDay(new Date().toISOString());
   const hasContent = overdue.length + today.length + upcoming.length + doneYest.length > 0;
+  return { myTasks, overdue, today, upcoming, doneYest, hasContent };
+}
+
+function buildEmail(person, tasks) {
+  const { overdue, today, upcoming, doneYest, hasContent } = getDigestBreakdown(person, tasks);
+  const todayStr = fmtDay(new Date().toISOString());
   const storeSection = person.isAdmin ? storeSummaryTable(tasks) : "";
 
   return `<!DOCTYPE html>
@@ -232,15 +238,23 @@ exports.handler = async () => {
   for (const person of PEOPLE) {
     if (!person.email) continue;
 
-    const myTasks = person.isAdmin ? tasks : tasks.filter(t => t.assigneeName===person.name || t.storeName===person.store);
-    const overdue = myTasks.filter(t=>!t.done&&isOverdue(t.due)).length;
-    const todayTasks = myTasks.filter(t=>!t.done&&isDueToday(t.due)).length;
+    const { overdue, today: todayList, hasContent } = getDigestBreakdown(person, tasks);
+
+    // Skip the send entirely for non-admins with nothing to report --
+    // previously this still sent a near-empty "All caught up!" email.
+    // Jessica still always gets hers since it includes the full company
+    // scorecard regardless of her own personal task count.
+    if (!person.isAdmin && !hasContent) {
+      console.log(`Skipped digest for ${person.name} -- nothing to report`);
+      results.push({ name: person.name, sent: false, skipped: true });
+      continue;
+    }
 
     // Build subject line
-    const subject = overdue > 0
-      ? `! ${overdue} overdue task${overdue>1?"s":""} - Floor Store Daily Digest`
-      : todayTasks > 0
-        ? `${todayTasks} task${todayTasks>1?"s":""} due today - Floor Store Daily Digest`
+    const subject = overdue.length > 0
+      ? `! ${overdue.length} overdue task${overdue.length>1?"s":""} - Floor Store Daily Digest`
+      : todayList.length > 0
+        ? `${todayList.length} task${todayList.length>1?"s":""} due today - Floor Store Daily Digest`
         : `Floor Store Daily Digest - ${today}`;
 
     const html = buildEmail(person, tasks);
