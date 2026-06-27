@@ -887,7 +887,7 @@ export default function App(){
         select option{background:#fff;color:#1a1a1a}
         textarea{resize:vertical;min-height:64px}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes toastIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes toastIn{from{opacity:0;transform:translate(-50%,-50%) scale(.92)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
         .fade-up{animation:fadeUp .25s ease forwards}
         .tab-btn{background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:8px 10px;border-radius:8px;color:rgba(0,0,0,0.4);transition:all .15s;white-space:nowrap;flex:1;text-align:center}
         .tab-btn.active{background:#1a1a1a;color:#fff;font-weight:700}
@@ -911,7 +911,7 @@ export default function App(){
         .notif-banner{background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);borderRadius:12px;padding:12px 16px;marginBottom:12px;fontSize:13px;color:#4338ca;display:flex;align-items:center;gap:10px;cursor:pointer}
       `}</style>
 
-      {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"12px 18px",fontSize:13,animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.2)",maxWidth:300,color:"#fff",fontWeight:500}}>{toast}</div>}
+      {toast&&<div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:1000,background:"rgba(26,26,26,0.95)",borderRadius:12,padding:"16px 22px",fontSize:14,textAlign:"center",animation:"toastIn .25s ease",boxShadow:"0 8px 32px rgba(0,0,0,0.3)",maxWidth:320,color:"#fff",fontWeight:500}}>{toast}</div>}
 
       <div style={{maxWidth:620,margin:"0 auto",paddingTop:"max(calc(env(safe-area-inset-top, 0px) + 24px), 64px)",paddingLeft:14,paddingRight:14,paddingBottom:80}}>
 
