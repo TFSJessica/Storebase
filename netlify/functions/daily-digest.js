@@ -68,7 +68,26 @@ function getGrade(score) {
   return "F";
 }
 
+// "3 hours overdue" / "2 days 4h overdue" -- null for tasks that aren't
+// currently overdue, OR that are already done (a completed task should
+// never be tagged as overdue, even if it was finished after its due time --
+// that's what the admin-only "late" tag on the Completed section is for).
+function formatOverdueDuration(due, done) {
+  if (!due || done) return null;
+  const diffMs = new Date() - new Date(due);
+  if (diffMs <= 0) return null;
+  const hours = diffMs / 3600000;
+  if (hours < 24) {
+    const h = Math.max(1, Math.round(hours));
+    return `${h} hour${h !== 1 ? "s" : ""} overdue`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return `${days} day${days !== 1 ? "s" : ""}${remHours > 0 ? ` ${remHours}h` : ""} overdue`;
+}
+
 function taskRow(t, color) {
+  const overdueDuration = formatOverdueDuration(t.due, t.done);
   return `
     <tr>
       <td style="padding:10px 16px;border-bottom:1px solid #f0ede8;">
@@ -79,6 +98,7 @@ function taskRow(t, color) {
             <div style="font-size:12px;color:#888;">
               Store: ${t.storeName || "No store"}
               ${t.due ? ` &nbsp;·&nbsp; Due: ${fmtDate(t.due)}` : ""}
+              ${overdueDuration ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:700;">${overdueDuration}</span>` : ""}
               ${t.priority === "high" ? " &nbsp;·&nbsp; HIGH PRIORITY" : ""}
             </div>
           </div>
@@ -87,13 +107,52 @@ function taskRow(t, color) {
     </tr>`;
 }
 
-function section(emoji, title, color, items) {
+// "3 hours late" / "2 days late" -- null if it was completed on time or early.
+function formatLateness(due, completedAt) {
+  if (!due || !completedAt) return null;
+  const diffMs = new Date(completedAt) - new Date(due);
+  if (diffMs <= 0) return null;
+  const hours = diffMs / 3600000;
+  if (hours < 24) {
+    const h = Math.max(1, Math.round(hours));
+    return `${h} hour${h !== 1 ? "s" : ""} late`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return `${days} day${days !== 1 ? "s" : ""}${remHours > 0 ? ` ${remHours}h` : ""} late`;
+}
+
+// Admin-only completed-task row: shows exactly when it was marked done, and
+// flags how late it was if it slipped past its due date/time. Regular
+// non-admin digests keep using the plain taskRow above, unchanged.
+function completedTaskRow(t, color) {
+  const lateness = formatLateness(t.due, t.completedAt);
+  return `
+    <tr>
+      <td style="padding:10px 16px;border-bottom:1px solid #f0ede8;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;margin-top:5px;"></div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:3px;">${t.title}</div>
+            <div style="font-size:12px;color:#888;">
+              Store: ${t.storeName || "No store"}
+              ${t.completedAt ? ` &nbsp;·&nbsp; Completed: ${fmtDate(t.completedAt)}` : ""}
+              ${t.completedBy ? ` &nbsp;·&nbsp; by ${t.completedBy}` : ""}
+              ${lateness ? ` &nbsp;·&nbsp; <span style="color:#dc2626;font-weight:700;">${lateness}</span>` : ""}
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function section(emoji, title, color, items, rowFn = taskRow) {
   if (!items.length) return "";
   return `
     <tr><td style="padding:18px 16px 8px;">
       <div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${color};">${emoji} ${title} (${items.length})</div>
     </td></tr>
-    ${items.map(t => taskRow(t, color)).join("")}`;
+    ${items.map(t => rowFn(t, color)).join("")}`;
 }
 
 function storeSummaryTable(allTasks) {
@@ -182,7 +241,7 @@ function buildEmail(person, tasks) {
         ${section("!", "Overdue - Action Required", "#dc2626", overdue)}
         ${section("Today", "Due Today", "#d97706", today)}
         ${section("Soon", "Coming Up This Week", "#3b82f6", upcoming)}
-        ${section("Done", "Completed Yesterday", "#16a34a", doneYest)}
+        ${section("Done", "Completed Yesterday", "#16a34a", doneYest, person.isAdmin ? completedTaskRow : taskRow)}
         ${storeSection}
       </table>
     </div>` : storeSection ? `<div style="background:#fff;"><table style="width:100%;border-collapse:collapse;">${storeSection}</table></div>` : ""}
