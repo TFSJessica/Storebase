@@ -1,7 +1,7 @@
 // Netlify Scheduled Function: check-overdue.js
 // Runs every hour to check for newly overdue tasks
 // Schedule set in netlify.toml
-exports.handler = async () => {
+const handler = async () => {
   const APP_URL = process.env.APP_URL || "https://tfsmakeithappen.netlify.app";
   const JESSICA_PLAYER_ID = process.env.JESSICA_PLAYER_ID;
   let tasks = [];
@@ -56,3 +56,6 @@ exports.handler = async () => {
   }
   return { statusCode: 200, body: JSON.stringify({ checked: tasks.length, overdue: overdueTasks.length }) };
 };
+
+const { schedule } = require("@netlify/functions");
+exports.handler = schedule("0 * * * *", handler);
