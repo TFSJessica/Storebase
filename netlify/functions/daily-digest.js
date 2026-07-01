@@ -263,7 +263,7 @@ async function sendEmail(to, subject, html) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "The Floor Store <digest@tfsmakeithappen.netlify.app>",
+      from: "The Floor Store <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
