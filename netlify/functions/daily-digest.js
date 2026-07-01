@@ -29,7 +29,7 @@ const PEOPLE = [
   { name: "Carlos Amaya",              email: "CarlosA@floorstores.com",        store: "Dublin"     },
   { name: "Francine Steele",           email: "FrancineS@floorstores.com",      store: "Santa Rosa" },
   { name: "Ben Morales",               email: "BenM@floorstores.com",           store: "San Carlos" },
-  { name: "Jessica Castillanos",       email: "jessicac.tfs@gmail.com",                    store: "ALL", isAdmin: true }, // TEMP: real email is ADMIN_EMAIL env var -- swap back after domain verified
+  { name: "Jessica Castillanos",       email: JESSICA_EMAIL,                    store: "ALL", isAdmin: true },
 ];
 
 function isOverdue(due) { return due && new Date(due) < new Date(); }
