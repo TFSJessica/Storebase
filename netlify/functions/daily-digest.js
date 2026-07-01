@@ -14,7 +14,7 @@ const APP_URL = process.env.APP_URL || "https://tfsmakeithappen.netlify.app";
 // should read from the same shared "people" storage check-overdue.js expects,
 // once that sync path is confirmed.
 const PEOPLE = [
-  { name: "Katherine Castillo Batres", email: "KatherineC@floorstores.com",     store: "Richmond"   },
+  { name: "Katherine Castillo Batres", email: "jessicac.tfs@gmail.com",     store: "Richmond"   }, // TEMP: real email is KatherineC@floorstores.com -- swap back once domain is verified
   { name: "Jake Popeyus",               email: "JacobP@floorstores.com",         store: "Concord"    },
   { name: "Teza Malmirchegini",         email: "TezaM@floorstores.com",          store: "Dublin"     },
   { name: "Rose Fernandez",             email: "RoselleF@floorstores.com",       store: "S.F."       },
