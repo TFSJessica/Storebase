@@ -325,7 +325,4 @@ const handler = async () => {
   return { statusCode: 200, body: JSON.stringify({ results }) };
 };
 
-// Netlify scheduled functions require this specific export format --
-// exports.handler alone is not enough for the scheduler to recognize the function.
-const { schedule } = require("@netlify/functions");
-exports.handler = schedule("0 16 * * *", handler);
+exports.handler = handler;
