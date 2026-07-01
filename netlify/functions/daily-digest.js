@@ -269,6 +269,12 @@ async function sendEmail(to, subject, html) {
       html,
     }),
   });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error(`Resend rejected email to ${to}: ${res.status}`, JSON.stringify(data));
+  } else {
+    console.log(`Resend accepted email to ${to}: id=${data.id}`);
+  }
   return res.ok;
 }
 
