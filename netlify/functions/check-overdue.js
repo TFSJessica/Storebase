@@ -57,5 +57,4 @@ const handler = async () => {
   return { statusCode: 200, body: JSON.stringify({ checked: tasks.length, overdue: overdueTasks.length }) };
 };
 
-const { schedule } = require("@netlify/functions");
-exports.handler = schedule("0 * * * *", handler);
+exports.handler = handler;
